@@ -62,16 +62,6 @@ interface MailResponse {
   data: ThreadsResponse;
 }
 
-interface ConnectionResponse {
-  connections: Array<{
-    id: string;
-    email: string;
-    name: string;
-    picture: string;
-    createdAt: string;
-  }>;
-}
-
 // Helper function to analyze emails
 function analyzeEmails(emails: EmailData[]): EmailStats {
   console.log("📊 Starting email analysis...", { totalEmails: emails.length });
@@ -211,8 +201,8 @@ const sendMessage = async (message: string) => {
     const { value: stream } = await streamUI({
       model: openai("gpt-4o-mini-2024-07-18"),
       system: `You are a friendly email assistant. Help users manage and understand their emails.
-When users ask to see or fetch their emails, use the fetchEmails tool.
-When users want analysis or summaries, use the summarizeEmails tool.`,
+       When users ask to see or fetch their emails, use the fetchEmails tool.
+       When users want analysis or summaries, use the summarizeEmails tool.`,
       messages: messages.get() as CoreMessage[],
       text: async function* ({ content, done }) {
         if (done) {
@@ -227,10 +217,7 @@ When users want analysis or summaries, use the summarizeEmails tool.`,
         fetchEmails: {
           description: "Fetch emails from the inbox",
           parameters: z.object({
-            folder: z
-              .string()
-              .optional()
-              .describe('Folder to fetch from (e.g., "inbox", "sent", "spam")'),
+            folder: z.string().optional().describe("fetch emails"),
             max: z.string().optional().describe("Maximum number of emails to fetch"),
           }),
           generate: async function* ({ folder = "inbox", max = "5" }) {
@@ -238,33 +225,11 @@ When users want analysis or summaries, use the summarizeEmails tool.`,
             const toolCallId = generateId();
 
             try {
-              // First check if we have a vald connection
-              const connectionResponse = await $fetch<ConnectionResponse>(
-                "/api/v1/mail/connections",
-                {
-                  baseURL: process.env.NEXT_PUBLIC_APP_URL,
-                },
-              );
-
-              console.log("📬 Connection response:", connectionResponse);
-
-              if (!connectionResponse?.data?.connections.length) {
-                console.error("🔒 No email connections found");
-                return <Message role="assistant" content={<ConnectionError />} />;
-              }
-
               const response = await $fetch<MailResponse>("/api/v1/mail", {
-                query: {
-                  folder,
-                  max,
-                },
-                baseURL: process.env.NEXT_PUBLIC_APP_URL,
+                query: { folder, max },
               });
 
-              console.log("📬 Mail response:", response);
-
               if (!response?.data?.data?.threads?.length) {
-                console.log("📭 No emails found");
                 return (
                   <Message role="assistant" content="No emails found in the specified folder." />
                 );
@@ -327,6 +292,7 @@ ${emails.map((e: { subject: string; from: string }) => `\n- ${e.subject} (from: 
           generate: async function* ({ period }) {
             console.log("📊 Starting email summary:", { period });
             const toolCallId = generateId();
+
             const endDate = new Date();
             const startDate = new Date();
             startDate.setHours(0, 0, 0, 0);
@@ -340,25 +306,8 @@ ${emails.map((e: { subject: string; from: string }) => `\n- ${e.subject} (from: 
             endDate.setHours(23, 59, 59, 999);
 
             try {
-              // First check if we have a valid connection
-              const connectionResponse = await $fetch<ConnectionResponse>(
-                "/api/v1/mail/connections",
-                {
-                  baseURL: process.env.NEXT_PUBLIC_APP_URL,
-                },
-              );
-
-              console.log("📬 Connection response:", connectionResponse);
-
-              if (!connectionResponse?.data?.connections?.length) {
-                console.error("🔒 No email connections found");
-                return <Message role="assistant" content={<ConnectionError />} />;
-              }
-
               const afterDate = startDate.toISOString().split("T")[0];
               const beforeDate = endDate.toISOString().split("T")[0];
-
-              console.log("📅 Date range:", { afterDate, beforeDate });
 
               const response = await $fetch<MailResponse>("/api/v1/mail", {
                 query: {
@@ -366,13 +315,9 @@ ${emails.map((e: { subject: string; from: string }) => `\n- ${e.subject} (from: 
                   max: "50",
                   q: `after:${afterDate} before:${beforeDate}`,
                 },
-                baseURL: process.env.NEXT_PUBLIC_APP_URL,
               });
 
-              console.log("📬 Mail response:", response);
-
               if (!response?.data?.data?.threads?.length) {
-                console.log("📭 No emails found in period");
                 return (
                   <Message
                     role="assistant"
