@@ -3,8 +3,8 @@ import { AuthError, GenericError } from "@/components/ai/error-messages";
 import { Message, TextStreamMessage } from "@/components/ai/messages";
 import { EmailSummary } from "@/components/ai/email-summary";
 import { EmailList } from "@/components/ai/email-list";
+import { $fetch, getSession } from "@/lib/auth-client";
 import { CoreMessage, generateId } from "ai";
-import { $fetch } from "@/lib/auth-client";
 import { openai } from "@ai-sdk/openai";
 import type { ReactNode } from "react";
 import * as React from "react";
@@ -12,92 +12,66 @@ import { z } from "zod";
 
 interface EmailData {
   id: string;
-
   subject: string;
-
   from: string;
-
   date: string;
-
   snippet: string;
-
   labels: Array<{
     id: string;
-
     name: string;
   }>;
 }
 
 interface EmailStats {
   totalEmails: number;
-
   topSenders: Array<[string, number]>;
-
   commonSubjects: string[];
-
   timeOfDay: {
     morning: number;
-
     afternoon: number;
-
     evening: number;
   };
 
   suspiciousEmails: Array<{
     subject: string;
-
     from: string;
-
     reason: string;
   }>;
-
   unreadCount: number;
 }
 
 interface InitialThread {
   id: string;
-
   title: string;
-
   subject: string;
-
   tags: string[];
-
   sender: {
     name: string;
-
     email: string;
   };
-
   receivedOn: string;
-
   unread: boolean;
 }
 
 interface ThreadsResponse {
   threads: InitialThread[];
-
   nextPageToken?: string;
-
   resultSizeEstimate?: number;
 }
 
-// Helper function to analyze emails
+interface IConnection {
+  id: string;
+}
 
+// Helper function to analyze emails
 function analyzeEmails(emails: EmailData[]): EmailStats {
   console.log("📊 Starting email analysis...", { totalEmails: emails.length });
-
   const stats: EmailStats = {
     totalEmails: emails.length,
-
     topSenders: [],
-
     commonSubjects: [],
-
     timeOfDay: { morning: 0, afternoon: 0, evening: 0 },
-
     suspiciousEmails: [],
-
     unreadCount: 0,
   };
 
@@ -107,25 +81,15 @@ function analyzeEmails(emails: EmailData[]): EmailStats {
 
   const suspiciousKeywords = [
     "urgent",
-
     "account suspended",
-
     "verify account",
-
     "lottery",
-
     "winner",
-
     "inheritance",
-
     "bank transfer",
-
     "cryptocurrency",
-
     "investment opportunity",
-
     "password expired",
-
     "security alert",
   ];
 
@@ -133,33 +97,21 @@ function analyzeEmails(emails: EmailData[]): EmailStats {
 
   for (const email of emails) {
     // Log suspicious patterns found
-
     const suspiciousPatterns = [];
-
     const sender = email.from;
-
     senderCount.set(sender, (senderCount.get(sender) || 0) + 1);
-
     const words = email.subject
-
       .toLowerCase()
-
       .split(/\s+/)
-
       .filter((word: string) => word.length > 3);
 
     for (const word of words) {
       wordCount.set(word, (wordCount.get(word) || 0) + 1);
     }
-
     // Spam/Suspicious detection
-
     const subjectLower = email.subject.toLowerCase();
-
     const fromLower = email.from.toLowerCase();
-
     // Check for suspicious keywords in subject
-
     const foundKeywords = suspiciousKeywords.filter((keyword) =>
       subjectLower.includes(keyword.toLowerCase()),
     );
@@ -167,19 +119,14 @@ function analyzeEmails(emails: EmailData[]): EmailStats {
     if (foundKeywords.length > 0) {
       suspiciousPatterns.push(`Keywords found: ${foundKeywords.join(", ")}`);
     }
-
     // Check for suspicious TLDs
-
     const hasSuspiciousTLD = suspiciousTLDs.some((tld) => fromLower.endsWith(tld));
-
     if (hasSuspiciousTLD) {
       suspiciousPatterns.push(`Suspicious TLD detected in: ${fromLower}`);
     }
 
     // Check for mismatched sender name and domain
-
     const [displayName, emailAddress] = email.from.split("<").map((s) => s.trim());
-
     const domainPart = emailAddress?.split("@")[1]?.replace(">", "");
 
     const mismatchedSender =
@@ -270,24 +217,19 @@ const sendMessage = async (message: string) => {
     const { value: stream } = await streamUI({
       model: openai("gpt-4o-mini-2024-07-18"),
 
-      system: `You are a friendly email assistant. Help users manage and understand their emails.
+      system: `
+      You are a friendly email assistant. Help users manage and understand their emails.
+      When users ask to see or fetch their emails with time periods (like "weekly", "monthly", "this week", "last month", etc), use the summarizeEmails tool.
+      When users ask to see emails without mentioning time periods, use the fetchEmails tool.
+      When users ask to see their inbox, use the fetchEmails tool.
 
- When users ask to see or fetch their emails with time periods (like "weekly", "monthly", "this week", "last month", etc), use the summarizeEmails tool.
-
- When users ask to see emails without mentioning time periods, use the fetchEmails tool.
-
- Examples:
-
- - "Show me my weekly emails" -> use summarizeEmails with period="week"
-
- - "Show me my emails from this week" -> use summarizeEmails with period="week"
-
- - "Show me my recent emails" -> use fetchEmails
-
- - "Show me my inbox" -> use fetchEmails`,
+      Examples:
+      - "Show me my weekly emails" -> use summarizeEmails with period="week"
+      - "Show me my emails from this week" -> use summarizeEmails with period="week"
+      - "Show me my recent emails" -> use fetchEmails
+      - "Show me my inbox" -> use fetchEmails`,
 
       messages: messages.get() as CoreMessage[],
-
       text: async function* ({ content, done }) {
         if (done) {
           messages.done([...(messages.get() as CoreMessage[]), { role: "assistant", content }]);
@@ -312,31 +254,79 @@ const sendMessage = async (message: string) => {
 
           generate: async function* ({ folder = "inbox", max = "5" }) {
             try {
-              // checkiing for a session
-              const session = await $fetch("/api/auth/session");
+              // Log the full session data
+
+              const session = await getSession();
+
+              console.log("🔑 Session data:", JSON.stringify(session, null, 2));
+
               if (!session) {
                 return <Message role="assistant" content={<AuthError />} />;
               }
 
-              yield <Message role="assistant" content="Fetching your emails..." />;
+              // Add debug logging for the connections request
 
-              const response = await $fetch<ThreadsResponse>("/api/auth/v1/mail", {
+              console.log("📨 Fetching connections with session token...");
+
+              const response = await $fetch<{ data: { connections: IConnection[] } }>(
+                "/api/v1/mail/connections",
+
+                {
+                  baseURL: process.env.NEXT_PUBLIC_APP_URL,
+
+                  credentials: "include",
+
+                  headers: {
+                    "Content-Type": "application/json",
+
+                    Authorization: `Bearer ${session.data?.connectionId}`, // Try adding the session token
+                  },
+                },
+              );
+
+              console.log("📬 Connections response:", response);
+
+              if (!response?.data?.data?.connections?.length) {
+                return (
+                  <Message role="assistant" content="Please connect an email account first." />
+                );
+              }
+
+              const connectionId = response.data.data.connections[0].id;
+
+              console.log("🔗 Using connection:", connectionId);
+
+              // Add same auth headers to mail request
+
+              const mailResponse = await $fetch<ThreadsResponse>(`/api/v1/mail/${connectionId}`, {
+                baseURL: process.env.NEXT_PUBLIC_APP_URL,
+
+                credentials: "include",
+
+                headers: {
+                  "Content-Type": "application/json",
+                },
+
                 query: {
                   folder,
+
                   max,
                 },
               });
 
-              if (!response?.data?.threads?.length) {
+              if (!mailResponse?.data?.threads?.length) {
                 return (
                   <Message role="assistant" content="No emails found in the specified folder." />
                 );
               }
 
-              const emails = response.data.threads.map((thread: InitialThread) => ({
+              const emails = mailResponse.data.threads.map((thread: InitialThread) => ({
                 subject: thread.subject,
+
                 from: thread.sender.email,
+
                 date: thread.receivedOn,
+
                 snippet: thread.title,
               }));
 
@@ -344,16 +334,30 @@ const sendMessage = async (message: string) => {
                 <Message role="assistant" content={<EmailList folder={folder} emails={emails} />} />
               );
             } catch (error: any) {
+              // Log detailed error
+
+              console.error("❌ Error details:", {
+                error,
+
+                status: error.response?.status,
+
+                data: error.response?.data,
+
+                stack: error.stack,
+              });
+
               if (error.response?.status === 401) {
                 return <Message role="assistant" content={<AuthError />} />;
               }
+
               return <Message role="assistant" content={<GenericError />} />;
             }
           },
         },
 
         summarizeEmails: {
-          description: "Get a summary of emails from a specific time period",
+          description:
+            "Get a summary of emails from a specific time period. If no time period is specified, it will summarize the latest emails.",
 
           parameters: z.object({
             period: z
@@ -365,15 +369,34 @@ const sendMessage = async (message: string) => {
 
           generate: async function* ({ period }) {
             try {
-              // First check if we have a session
-              const session = await $fetch("/api/auth/session");
+              const session = await getSession();
+
               if (!session) {
                 return <Message role="assistant" content={<AuthError />} />;
               }
 
-              yield <Message role="assistant" content="Preparing to analyze your emails..." />;
+              // Get the response with proper typing
+
+              const response = await $fetch<{ data: { connections: IConnection[] } }>(
+                "/api/v1/mail/connections",
+
+                {
+                  baseURL: process.env.NEXT_PUBLIC_APP_URL,
+                },
+              );
+
+              // Check if we have connections
+
+              if (!response?.data?.data?.connections?.length) {
+                return <Message role="assistant" content="No connections found." />;
+              }
+
+              const connectionId = response.data.data.connections[0].id;
+
+              console.log("🔗 Using connection:", connectionId);
 
               const endDate = new Date();
+
               const startDate = new Date();
 
               if (period.includes("week")) {
@@ -383,20 +406,26 @@ const sendMessage = async (message: string) => {
               }
 
               startDate.setHours(0, 0, 0, 0);
+
               endDate.setHours(23, 59, 59, 999);
 
               const afterDate = startDate.toISOString().split("T")[0];
+
               const beforeDate = endDate.toISOString().split("T")[0];
 
-              const response = await $fetch<ThreadsResponse>("/api/v1/mail", {
+              const mailResponse = await $fetch<ThreadsResponse>(`/api/v1/mail/${connectionId}`, {
+                baseURL: process.env.NEXT_PUBLIC_APP_URL,
+
                 query: {
                   folder: "inbox",
+
                   max: "50",
+
                   q: `after:${afterDate} before:${beforeDate}`,
                 },
               });
 
-              if (!response?.data?.threads?.length) {
+              if (!mailResponse?.data?.threads?.length) {
                 return (
                   <Message
                     role="assistant"
@@ -405,16 +434,24 @@ const sendMessage = async (message: string) => {
                 );
               }
 
-              const emails: EmailData[] = response.data.threads.map((thread: InitialThread) => ({
-                id: thread.id,
-                subject: thread.subject,
-                from: thread.sender.email,
-                date: thread.receivedOn,
-                snippet: thread.title,
-                labels: thread.tags.map((tag: string) => ({ id: tag, name: tag })),
-              }));
+              const emails: EmailData[] = mailResponse.data.threads.map(
+                (thread: InitialThread) => ({
+                  id: thread.id,
+
+                  subject: thread.subject,
+
+                  from: thread.sender.email,
+
+                  date: thread.receivedOn,
+
+                  snippet: thread.title,
+
+                  labels: thread.tags.map((tag: string) => ({ id: tag, name: tag })),
+                }),
+              );
 
               const summary = analyzeEmails(emails);
+
               return (
                 <Message
                   role="assistant"
@@ -425,6 +462,7 @@ const sendMessage = async (message: string) => {
               if (error.response?.status === 401) {
                 return <Message role="assistant" content={<AuthError />} />;
               }
+
               return <Message role="assistant" content={<GenericError />} />;
             }
           },

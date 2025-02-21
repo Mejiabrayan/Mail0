@@ -1,6 +1,7 @@
 "use client";
 
-import { Book, ChevronDown, HelpCircle, LogIn, LogOut, UserPlus } from "lucide-react";
+import { Book, ChevronDown, HelpCircle, LogIn, LogOut, MoonIcon, UserPlus } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 import {
   DropdownMenu,
@@ -13,9 +14,10 @@ import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui
 import { useConnections } from "@/hooks/use-connections";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
+import { useEffect, useMemo, useState } from "react";
+import { SunIcon } from "../icons/animated/sun";
+import { useTheme } from "next-themes";
 import { IConnection } from "@/types";
-import { useMemo } from "react";
-import Image from "next/image";
 import { toast } from "sonner";
 import axios from "axios";
 
@@ -24,11 +26,34 @@ export function NavUser() {
   const router = useRouter();
   const { data: connections, isLoading, mutate } = useConnections();
   const pathname = usePathname();
+  const [isRendered, setIsRendered] = useState(false);
+  const { theme, resolvedTheme, setTheme } = useTheme();
 
   const activeAccount = useMemo(() => {
     if (!session) return null;
     return connections?.find((connection) => connection.id === session?.connectionId);
   }, [session, connections]);
+
+  // Prevents hydration error
+  useEffect(() => setIsRendered(true), []);
+
+  async function handleThemeToggle() {
+    const newTheme = theme === "dark" ? "light" : "dark";
+
+    function update() {
+      setTheme(newTheme);
+    }
+
+    if (document.startViewTransition && newTheme !== resolvedTheme) {
+      document.documentElement.style.viewTransitionName = "theme-transition";
+      await document.startViewTransition(update).finished;
+      document.documentElement.style.viewTransitionName = "";
+    } else {
+      update();
+    }
+  }
+
+  if (!isRendered) return null;
 
   const handleAccountSwitch = (connection: IConnection) => () => {
     return axios
@@ -47,40 +72,12 @@ export function NavUser() {
       });
   };
 
-  const handleLogout = () => {
-    if (!session) return;
-
-    const remainingConnections = connections?.filter(
-      (connection) => connection.id !== session.connectionId,
-    );
-
-    if (remainingConnections?.length) {
-      // Delete current connection and switch to the next
-      return axios
-        .delete(`/api/v1/mail/connections/${session.connectionId}`)
-        .then(() => handleAccountSwitch(remainingConnections[0])())
-        .catch((err) => {
-          toast.error("Error logging out", {
-            description: err.response?.data?.message,
-          });
-        });
-    } else {
-      // No remaining accounts, delete connection and proceed with full better-auth sign out
-      return toast.promise(
-        axios.delete(`/api/v1/mail/connections/${session.connectionId}`).then(() =>
-          signOut({
-            fetchOptions: {
-              onSuccess: () => router.push("/"),
-            },
-          }),
-        ),
-        {
-          loading: "Signing out...",
-          success: "Signed out successfully!",
-          error: "Error signing out",
-        },
-      );
-    }
+  const handleLogout = async () => {
+    toast.promise(signOut(), {
+      loading: "Signing out...",
+      success: () => "Signed out successfully!",
+      error: "Error signing out",
+    });
   };
 
   return (
@@ -98,13 +95,25 @@ export function NavUser() {
                 </>
               ) : (
                 <>
-                  <Image
-                    src={activeAccount?.picture || session?.user.image || "/logo.png"}
-                    alt={activeAccount?.name || session?.user.name || "User"}
-                    className="ring-none size-[32px] rounded-md object-fill ring-0 hover:bg-transparent"
-                    width={28}
-                    height={28}
-                  />
+                  <Avatar className="size-[32px] rounded-lg">
+                    <AvatarImage
+                      className="rounded-lg"
+                      src={
+                        (activeAccount?.picture ?? undefined) || (session?.user.image ?? undefined)
+                      }
+                      alt={activeAccount?.name || session?.user.name || "User"}
+                    />
+                    <AvatarFallback className="relative overflow-hidden rounded-lg bg-black dark:bg-white">
+                      <span className="relative z-10 text-white dark:text-black">
+                        {(activeAccount?.name || session?.user.name || "User")
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)}
+                      </span>
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="flex min-w-0 flex-col gap-0.5 leading-none">
                     <span className="truncate font-medium tracking-tight">
                       {activeAccount?.name || session?.user.name || "User"}
@@ -140,6 +149,16 @@ export function NavUser() {
             <p className="text-[13px] opacity-60">Documentation</p>
           </div>
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleThemeToggle}>
+          <div className="flex cursor-pointer items-center gap-2 text-[13px]">
+            {theme === "dark" ? (
+              <MoonIcon className="opacity-60" />
+            ) : (
+              <SunIcon className="opacity-60" />
+            )}
+            <p className="text-[13px] opacity-60">App Theme</p>
+          </div>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <div className="space-y-1">
           {session ? (
@@ -153,13 +172,21 @@ export function NavUser() {
                     connection.id === session?.connectionId ? "bg-accent" : ""
                   }`}
                 >
-                  <Image
-                    src={connection.picture || "/placeholder.svg"}
-                    alt={connection.name || connection.email}
-                    className="size-5 shrink-0 rounded"
-                    width={16}
-                    height={16}
-                  />
+                  <Avatar className="size-5 rounded-lg">
+                    <AvatarImage
+                      className="rounded-lg"
+                      src={connection.picture || undefined}
+                      alt={connection.name || connection.email}
+                    />
+                    <AvatarFallback className="rounded-lg text-[10px]">
+                      {(connection.name || connection.email)
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 2)}
+                    </AvatarFallback>
+                  </Avatar>
                   <div className="-space-y-1">
                     <p className="text-[12px]">{connection.name || connection.email}</p>
                     {connection.name && (
