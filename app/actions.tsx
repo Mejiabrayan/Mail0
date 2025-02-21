@@ -311,24 +311,20 @@ const sendMessage = async (message: string) => {
           }),
 
           generate: async function* ({ folder = "inbox", max = "5" }) {
-            console.log("📨 Fetching emails:", { folder, max });
-
-            const toolCallId = generateId();
-
-            // Initial loading state
-
-            yield <Message role="assistant" content="Fetching your emails..." />;
-
             try {
-              const response = await $fetch<ThreadsResponse>("/v1/mail", {
-                query: { folder, max },
-              });
+              // checkiing for a session
+              const session = await $fetch("/api/auth/session");
+              if (!session) {
+                return <Message role="assistant" content={<AuthError />} />;
+              }
 
-              console.log("📨 Email response:", {
-                status: "success",
-                threadCount: response?.data?.threads?.length,
-                folder,
-                max,
+              yield <Message role="assistant" content="Fetching your emails..." />;
+
+              const response = await $fetch<ThreadsResponse>("/api/auth/v1/mail", {
+                query: {
+                  folder,
+                  max,
+                },
               });
 
               if (!response?.data?.threads?.length) {
@@ -339,54 +335,18 @@ const sendMessage = async (message: string) => {
 
               const emails = response.data.threads.map((thread: InitialThread) => ({
                 subject: thread.subject,
-
                 from: thread.sender.email,
-
                 date: thread.receivedOn,
-
                 snippet: thread.title,
               }));
-
-              messages.done([
-                ...(messages.get() as CoreMessage[]),
-
-                {
-                  role: "assistant",
-
-                  content: [
-                    {
-                      type: "tool-call",
-
-                      toolCallId,
-
-                      toolName: "fetchEmails",
-
-                      args: { folder, max },
-                    },
-                  ],
-                },
-              ]);
 
               return (
                 <Message role="assistant" content={<EmailList folder={folder} emails={emails} />} />
               );
             } catch (error: any) {
-              console.error("❌ Error fetching emails:", {
-                error,
-
-                status: error.response?.status,
-
-                folder,
-
-                max,
-              });
-
-              // Check if it's an authentication error
-
               if (error.response?.status === 401) {
                 return <Message role="assistant" content={<AuthError />} />;
               }
-
               return <Message role="assistant" content={<GenericError />} />;
             }
           },
@@ -404,50 +364,36 @@ const sendMessage = async (message: string) => {
           }),
 
           generate: async function* ({ period }) {
-            console.log("📊 Starting email summary:", { period });
-
-            const toolCallId = generateId();
-
-            // Initial loading state
-
-            yield <Message role="assistant" content="Preparing to analyze your emails..." />;
-
-            const endDate = new Date();
-
-            const startDate = new Date();
-
-            if (period.includes("week")) {
-              startDate.setDate(endDate.getDate() - 7);
-            } else if (period.includes("month")) {
-              startDate.setDate(endDate.getDate() - 30);
-            }
-
-            startDate.setHours(0, 0, 0, 0);
-
-            endDate.setHours(23, 59, 59, 999);
-
             try {
-              // Show fetching state
-              yield <Message role="assistant" content="Fetching your emails..." />;
+              // First check if we have a session
+              const session = await $fetch("/api/auth/session");
+              if (!session) {
+                return <Message role="assistant" content={<AuthError />} />;
+              }
+
+              yield <Message role="assistant" content="Preparing to analyze your emails..." />;
+
+              const endDate = new Date();
+              const startDate = new Date();
+
+              if (period.includes("week")) {
+                startDate.setDate(endDate.getDate() - 7);
+              } else if (period.includes("month")) {
+                startDate.setDate(endDate.getDate() - 30);
+              }
+
+              startDate.setHours(0, 0, 0, 0);
+              endDate.setHours(23, 59, 59, 999);
 
               const afterDate = startDate.toISOString().split("T")[0];
               const beforeDate = endDate.toISOString().split("T")[0];
 
-              console.log("📅 Date range:", { afterDate, beforeDate });
-
-              const response = await $fetch<ThreadsResponse>("/v1/mail", {
+              const response = await $fetch<ThreadsResponse>("/api/v1/mail", {
                 query: {
                   folder: "inbox",
                   max: "50",
                   q: `after:${afterDate} before:${beforeDate}`,
                 },
-              });
-
-              console.log("📊 Summary response:", {
-                status: "success",
-                threadCount: response?.data?.threads?.length,
-                period,
-                dateRange: { afterDate, beforeDate },
               });
 
               if (!response?.data?.threads?.length) {
@@ -459,67 +405,16 @@ const sendMessage = async (message: string) => {
                 );
               }
 
-              // Show processing state
-
-              yield (
-                <Message
-                  role="assistant"
-                  content={`Processing ${response.data.threads.length} emails...`}
-                />
-              );
-
               const emails: EmailData[] = response.data.threads.map((thread: InitialThread) => ({
                 id: thread.id,
-
                 subject: thread.subject,
-
                 from: thread.sender.email,
-
                 date: thread.receivedOn,
-
                 snippet: thread.title,
-
                 labels: thread.tags.map((tag: string) => ({ id: tag, name: tag })),
               }));
 
-              messages.done([
-                ...(messages.get() as CoreMessage[]),
-
-                {
-                  role: "assistant",
-
-                  content: [
-                    {
-                      type: "tool-call",
-
-                      toolCallId,
-
-                      toolName: "summarizeEmails",
-
-                      args: { period },
-                    },
-                  ],
-                },
-
-                {
-                  role: "tool",
-
-                  content: [
-                    {
-                      type: "tool-result",
-
-                      toolName: "summarizeEmails",
-
-                      toolCallId,
-
-                      result: `Analyzed ${emails.length} emails from the past ${period}`,
-                    },
-                  ],
-                },
-              ]);
-
               const summary = analyzeEmails(emails);
-
               return (
                 <Message
                   role="assistant"
@@ -527,18 +422,9 @@ const sendMessage = async (message: string) => {
                 />
               );
             } catch (error: any) {
-              console.error("❌ Error summarizing emails:", {
-                error,
-
-                status: error.response?.status,
-
-                period,
-              });
-
               if (error.response?.status === 401) {
                 return <Message role="assistant" content={<AuthError />} />;
               }
-
               return <Message role="assistant" content={<GenericError />} />;
             }
           },
