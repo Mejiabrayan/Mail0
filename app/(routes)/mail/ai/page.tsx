@@ -128,13 +128,13 @@ export default function AIPage() {
             <CardTitle className="text-base font-medium">
               AI Assistant
               <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                Beta
+                Alpha
               </span>
             </CardTitle>
           </div>
         </CardHeader>
 
-        <CardContent className="bg-tr flex flex-1 flex-col gap-4 overflow-hidden p-4">
+        <CardContent className="flex flex-1 flex-col gap-4 overflow-hidden bg-transparent p-4">
           <div
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto rounded-lg p-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-2"
