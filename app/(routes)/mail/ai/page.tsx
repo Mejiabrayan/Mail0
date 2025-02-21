@@ -134,8 +134,11 @@ export default function AIPage() {
           </div>
         </CardHeader>
 
-        <CardContent className="flex flex-1 flex-col gap-4 p-4">
-          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto rounded-lg p-4">
+        <CardContent className="bg-tr flex flex-1 flex-col gap-4 overflow-hidden p-4">
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto rounded-lg p-4 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-2"
+          >
             {messages.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-4">
                 <div className="space-y-2 text-center">
