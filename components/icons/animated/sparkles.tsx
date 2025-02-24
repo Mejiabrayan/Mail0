@@ -90,15 +90,15 @@ const SparklesIcon = forwardRef<SparklesIconHandle, HTMLAttributes<HTMLDivElemen
 
     return (
       <div
-        className="flex cursor-pointer select-none items-center justify-center rounded-md p-2 transition-colors duration-200 hover:bg-accent"
+        className="justify-cente flex cursor-pointer select-none items-center rounded-md p-2 transition-colors duration-200 hover:bg-accent"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         {...props}
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          width="14"
-          height="14"
+          width="17"
+          height="17"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
