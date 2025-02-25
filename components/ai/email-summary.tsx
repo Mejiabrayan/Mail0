@@ -1,6 +1,11 @@
 "use client";
 
+import { BarChart3, Calendar, UsersRound, Mail, MailOpen, Clock, ChevronRight } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -15,11 +20,6 @@ interface EmailStats {
     afternoon: number;
     evening: number;
   };
-  suspiciousEmails: Array<{
-    subject: string;
-    from: string;
-    reason: string;
-  }>;
   unreadCount: number;
 }
 
@@ -30,6 +30,28 @@ interface EmailSummaryProps {
 }
 
 export function EmailSummary({ period, summary, className }: EmailSummaryProps) {
+  const [activeTab, setActiveTab] = React.useState("overview");
+
+  // Calculate email distribution percentages
+  const totalTimeDistribution = Object.values(summary.timeOfDay).reduce((a, b) => a + b, 0);
+  const timeDistributionPercentages = {
+    morning: totalTimeDistribution
+      ? Math.round((summary.timeOfDay.morning / totalTimeDistribution) * 100)
+      : 0,
+    afternoon: totalTimeDistribution
+      ? Math.round((summary.timeOfDay.afternoon / totalTimeDistribution) * 100)
+      : 0,
+    evening: totalTimeDistribution
+      ? Math.round((summary.timeOfDay.evening / totalTimeDistribution) * 100)
+      : 0,
+  };
+
+  // Calculate read/unread percentages
+  const readPercentage = summary.totalEmails
+    ? Math.round(((summary.totalEmails - summary.unreadCount) / summary.totalEmails) * 100)
+    : 0;
+  const unreadPercentage = 100 - readPercentage;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -37,193 +59,217 @@ export function EmailSummary({ period, summary, className }: EmailSummaryProps) 
       transition={{ duration: 0.15 }}
       className={cn("space-y-4", className)}
     >
-      <h3 className="inline-flex items-center gap-2 text-lg">
-        <span className="relative isolate rounded-full bg-blue-500/10 px-3 py-1 font-semibold text-blue-700 ring-1 ring-blue-500/20 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-full before:bg-gradient-to-b before:from-blue-500/5 before:opacity-50 dark:text-blue-300 dark:ring-blue-400/20 dark:before:from-blue-400/10">
-          Email Summary
-        </span>
-        <span className="text-muted-foreground">for the Last {period}</span>
-      </h3>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="inline-flex items-center gap-2 text-lg">
+          <span className="relative isolate rounded-full bg-blue-500/10 px-3 py-1 font-semibold text-blue-700 ring-1 ring-blue-500/20 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-full before:bg-gradient-to-b before:from-blue-500/5 before:opacity-50 dark:text-blue-300 dark:ring-blue-400/20 dark:before:from-blue-400/10">
+            Email Summary
+          </span>
+          <span className="text-muted-foreground">for the Last {period}</span>
+        </h3>
 
-      <ScrollArea className="h-[calc(100vh-20rem)]" type="scroll">
-        <div className="space-y-4 p-1">
-          {/* Overview Stats */}
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.2, delay: 0.1 }}
-              className={cn(
-                "group relative overflow-hidden rounded-lg border border-transparent p-4 transition-all",
-                "hover:border-border hover:bg-accent/50",
-                "shadow-[0_1px_3px_theme(colors.black/0.05)] dark:shadow-[0_1px_theme(colors.white/0.07)_inset]",
-                "ring-1 ring-black/5 dark:ring-white/5",
-              )}
-            >
-              <p className="text-sm text-muted-foreground">Total Emails</p>
-              <p className="mt-1 text-2xl font-bold">{summary.totalEmails}</p>
-            </motion.div>
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.2, delay: 0.15 }}
-              className={cn(
-                "group relative overflow-hidden rounded-lg border border-transparent p-4 transition-all",
-                "hover:border-border hover:bg-accent/50",
-                "shadow-[0_1px_3px_theme(colors.black/0.05)] dark:shadow-[0_1px_theme(colors.white/0.07)_inset]",
-                "ring-1 ring-black/5 dark:ring-white/5",
-              )}
-            >
-              <p className="text-sm text-muted-foreground">Unread</p>
-              <p className="mt-1 text-2xl font-bold">{summary.unreadCount}</p>
-            </motion.div>
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.2, delay: 0.2 }}
-              className={cn(
-                "group relative overflow-hidden rounded-lg border border-transparent p-4 transition-all",
-                "hover:border-border hover:bg-accent/50",
-                "shadow-[0_1px_3px_theme(colors.black/0.05)] dark:shadow-[0_1px_theme(colors.white/0.07)_inset]",
-                "ring-1 ring-black/5 dark:ring-white/5",
-              )}
-            >
-              <p className="text-sm text-muted-foreground">Suspicious</p>
-              <p className="mt-1 text-2xl font-bold">{summary.suspiciousEmails.length}</p>
-            </motion.div>
-          </div>
-
-          {/* Top Senders */}
-          <motion.div
-            initial={{ y: 10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.2, delay: 0.25 }}
-            className={cn(
-              "group relative overflow-hidden rounded-lg border border-transparent p-4 transition-all",
-              "hover:border-border hover:bg-accent/50",
-              "shadow-[0_1px_3px_theme(colors.black/0.05)] dark:shadow-[0_1px_theme(colors.white/0.07)_inset]",
-              "ring-1 ring-black/5 dark:ring-white/5",
-            )}
-          >
-            <h4 className="mb-3 inline-flex rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-700 ring-1 ring-emerald-500/20 dark:text-emerald-300 dark:ring-emerald-400/20">
-              Top Senders
-            </h4>
-            <div className="space-y-2">
-              {summary.topSenders.map(([sender, count], index) => (
-                <motion.div
-                  key={sender}
-                  initial={{ x: -10, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.2, delay: 0.3 + index * 0.05 }}
-                  className="flex items-center justify-between rounded-md px-2 py-1 hover:bg-accent/50"
-                >
-                  <span className="font-medium">{sender}</span>
-                  <Badge variant="secondary">{count} emails</Badge>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Common Subjects */}
-          <motion.div
-            initial={{ y: 10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.2, delay: 0.35 }}
-            className={cn(
-              "group relative overflow-hidden rounded-lg border border-transparent p-4 transition-all",
-              "hover:border-border hover:bg-accent/50",
-              "shadow-[0_1px_3px_theme(colors.black/0.05)] dark:shadow-[0_1px_theme(colors.white/0.07)_inset]",
-              "ring-1 ring-black/5 dark:ring-white/5",
-            )}
-          >
-            <h4 className="mb-3 inline-flex rounded-full bg-purple-500/10 px-3 py-1 text-sm font-medium text-purple-700 ring-1 ring-purple-500/20 dark:text-purple-300 dark:ring-purple-400/20">
-              Common Subject Words
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              {summary.commonSubjects.map((subject, index) => (
-                <motion.div
-                  key={subject}
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.15, delay: 0.4 + index * 0.05 }}
-                >
-                  <Badge variant="outline" className="rounded-full">
-                    {subject}
-                  </Badge>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Time Distribution */}
-          <motion.div
-            initial={{ y: 10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.2, delay: 0.45 }}
-            className={cn(
-              "group relative overflow-hidden rounded-lg border border-transparent p-4 transition-all",
-              "hover:border-border hover:bg-accent/50",
-              "shadow-[0_1px_3px_theme(colors.black/0.05)] dark:shadow-[0_1px_theme(colors.white/0.07)_inset]",
-              "ring-1 ring-black/5 dark:ring-white/5",
-            )}
-          >
-            <h4 className="mb-3 inline-flex rounded-full bg-indigo-500/10 px-3 py-1 text-sm font-medium text-indigo-700 ring-1 ring-indigo-500/20 dark:text-indigo-300 dark:ring-indigo-400/20">
-              Time Distribution
-            </h4>
-            <div className="grid grid-cols-3 gap-4">
-              {Object.entries(summary.timeOfDay).map(([time, count], index) => (
-                <motion.div
-                  key={time}
-                  initial={{ y: 5, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.2, delay: 0.5 + index * 0.05 }}
-                  className="rounded-lg bg-accent/50 p-3 text-center"
-                >
-                  <p className="text-sm capitalize text-muted-foreground">{time}</p>
-                  <p className="text-xl font-bold">{count}</p>
-                </motion.div>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Suspicious Emails */}
-          {summary.suspiciousEmails.length > 0 && (
-            <motion.div
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.2, delay: 0.55 }}
-              className={cn(
-                "group relative overflow-hidden rounded-lg border border-transparent p-4 transition-all",
-                "hover:border-border hover:bg-accent/50",
-                "shadow-[0_1px_3px_theme(colors.black/0.05)] dark:shadow-[0_1px_theme(colors.white/0.07)_inset]",
-                "ring-1 ring-black/5 dark:ring-white/5",
-              )}
-            >
-              <h4 className="mb-3 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-3 py-1 text-sm font-medium text-amber-700 ring-1 ring-amber-500/20 dark:text-amber-300 dark:ring-amber-400/20">
-                ⚠️ Suspicious Emails
-              </h4>
-              <div className="space-y-2">
-                {summary.suspiciousEmails.map((email, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ x: -10, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ duration: 0.2, delay: 0.6 + index * 0.05 }}
-                    className="rounded-lg bg-amber-500/10 p-3 text-amber-900 ring-1 ring-amber-500/20 dark:text-amber-200 dark:ring-amber-400/20"
-                  >
-                    <p className="font-medium">{email.subject}</p>
-                    <p className="text-sm text-amber-800/80 dark:text-amber-200/80">
-                      From: {email.from}
-                    </p>
-                    <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
-                      {email.reason}
-                    </p>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
+        <div className="mt-2 sm:mt-0">
+          <Button variant="outline" size="sm" className="text-xs">
+            <Calendar className="mr-1 h-3.5 w-3.5" />
+            {new Date().toLocaleDateString()}
+          </Button>
         </div>
-      </ScrollArea>
+      </div>
+
+      <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview" className="flex items-center gap-1">
+            <BarChart3 className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Overview</span>
+          </TabsTrigger>
+          <TabsTrigger value="senders" className="flex items-center gap-1">
+            <UsersRound className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Senders</span>
+          </TabsTrigger>
+          <TabsTrigger value="time" className="flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Time</span>
+          </TabsTrigger>
+        </TabsList>
+
+        <ScrollArea className="h-[calc(100vh-24rem)]" type="scroll">
+          <div className="p-1">
+            <TabsContent value="overview" className="mt-4 space-y-4">
+              {/* Overview Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total Emails
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center">
+                      <Mail className="mr-2 h-4 w-4 text-blue-500" />
+                      <span className="text-2xl font-bold">{summary.totalEmails}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Unread
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center">
+                      <MailOpen className="mr-2 h-4 w-4 text-amber-500" />
+                      <span className="text-2xl font-bold">{summary.unreadCount}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Read/Unread Distribution */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Read vs Unread</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span>Read ({summary.totalEmails - summary.unreadCount})</span>
+                    <span>Unread ({summary.unreadCount})</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full bg-blue-500" style={{ width: `${readPercentage}%` }} />
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{readPercentage}%</span>
+                    <span>{unreadPercentage}%</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Common Subject Words */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Common Keywords</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {summary.commonSubjects.map((subject) => (
+                      <Badge key={subject} variant="outline" className="rounded-full">
+                        {subject}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="senders" className="mt-4 space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Top Senders</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {summary.topSenders.map(([sender, count]) => {
+                      const percentage = Math.round((count / summary.totalEmails) * 100);
+                      return (
+                        <div key={sender} className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{sender}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {count} emails ({percentage}%)
+                            </span>
+                          </div>
+                          <Progress value={percentage} className="h-2" />
+                          <div className="flex justify-end">
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                              View emails
+                              <ChevronRight className="ml-1 h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="time" className="mt-4 space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-medium">Email Distribution by Time</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {/* Morning */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="mr-2 h-3 w-3 rounded-full bg-amber-500" />
+                          <span>Morning (Before noon)</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {summary.timeOfDay.morning} emails
+                        </span>
+                      </div>
+                      <Progress
+                        value={timeDistributionPercentages.morning}
+                        className="h-2"
+                        indicatorClassName="bg-amber-500"
+                      />
+                      <div className="text-right text-xs text-muted-foreground">
+                        {timeDistributionPercentages.morning}%
+                      </div>
+                    </div>
+
+                    {/* Afternoon */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="mr-2 h-3 w-3 rounded-full bg-blue-500" />
+                          <span>Afternoon (12pm - 5pm)</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {summary.timeOfDay.afternoon} emails
+                        </span>
+                      </div>
+                      <Progress
+                        value={timeDistributionPercentages.afternoon}
+                        className="h-2"
+                        indicatorClassName="bg-blue-500"
+                      />
+                      <div className="text-right text-xs text-muted-foreground">
+                        {timeDistributionPercentages.afternoon}%
+                      </div>
+                    </div>
+
+                    {/* Evening */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="mr-2 h-3 w-3 rounded-full bg-purple-500" />
+                          <span>Evening (After 5pm)</span>
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {summary.timeOfDay.evening} emails
+                        </span>
+                      </div>
+                      <Progress
+                        value={timeDistributionPercentages.evening}
+                        className="h-2"
+                        indicatorClassName="bg-purple-500"
+                      />
+                      <div className="text-right text-xs text-muted-foreground">
+                        {timeDistributionPercentages.evening}%
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </div>
+        </ScrollArea>
+      </Tabs>
     </motion.div>
   );
 }

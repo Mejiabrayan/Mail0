@@ -1,3 +1,5 @@
+"use client";
+
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "../ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { ArrowRightIcon, Menu, X } from "lucide-react";
